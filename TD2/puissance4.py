@@ -1,69 +1,139 @@
-import math
 import time
-import copy
 
-# CONSTANTS
+# --- Constantes ---
 ROWS = 6
 COLS = 12
-MAX_PIECES = 42
-
-IA_PIECE = 1
-PLAYER_PIECE = -1
+MAX_PIECE_COUNT = 42
 EMPTY = 0
+IA_PLAYER = 1
+HUMAN_PLAYER = -1
+
+# --- Fonctions Requises (Livrables) ---
 
 def Terminal_Test(board):
-    for piece in [IA_PIECE, PLAYER_PIECE]:
-        for c in range(COLS - 3):
-            for r in range(ROWS):
-                if board[r][c] == piece and board[r][c+1] == piece and board[r][c+2] == piece and board[r][c+3] == piece:
-                    return True
-        for c in range(COLS):
-            for r in range(ROWS - 3):
-                if board[r][c] == piece and board[r+1][c] == piece and board[r+2][c] == piece and board[r+3][c] == piece:
-                    return True
-        for c in range(COLS - 3):
-            for r in range(ROWS - 3):
-                if board[r][c] == piece and board[r+1][c+1] == piece and board[r+2][c+2] == piece and board[r+3][c+3] == piece:
-                    return True
-        for c in range(COLS - 3):
-            for r in range(3, ROWS):
-                if board[r][c] == piece and board[r-1][c+1] == piece and board[r-2][c+2] == piece and board[r-3][c+3] == piece:
-                    return True
-
-    pieces_played = 0
-    for r in range(ROWS):
-        for c in range(COLS):
-            if board[r][c] != EMPTY:
-                pieces_played += 1
+    # Lignes
+    for c in range(COLS - 3):
+        for r in range(ROWS):
+            if board[r][c] != EMPTY and board[r][c] == board[r][c+1] == board[r][c+2] == board[r][c+3]:
+                return True
                 
-    if pieces_played >= MAX_PIECES:
+    # Colonnes
+    for c in range(COLS):
+        for r in range(ROWS - 3):
+            if board[r][c] != EMPTY and board[r][c] == board[r+1][c] == board[r+2][c] == board[r+3][c]:
+                return True
+                
+    # Diagonales montantes
+    for c in range(COLS - 3):
+        for r in range(ROWS - 3):
+            if board[r][c] != EMPTY and board[r][c] == board[r+1][c+1] == board[r+2][c+2] == board[r+3][c+3]:
+                return True
+                
+    # Diagonales descendantes
+    for c in range(COLS - 3):
+        for r in range(3, ROWS):
+            if board[r][c] != EMPTY and board[r][c] == board[r-1][c+1] == board[r-2][c+2] == board[r-3][c+3]:
+                return True
+                
+    # Limite de pions (42) ou plateau plein
+    piece_count = sum(1 for r in range(ROWS) for c in range(COLS) if board[r][c] != EMPTY)
+    if piece_count >= MAX_PIECE_COUNT:
         return True
 
-    board_full = True
-    for c in range(COLS):
-        if board[0][c] == EMPTY:
-            board_full = False
-            break
-            
-    if board_full:
+    if all(board[0][c] != EMPTY for c in range(COLS)):
         return True
 
     return False
 
 def IA_Decision(board):
-    depth = 4 
-    col, score = minimax(board, depth, -math.inf, math.inf, True)
+    # Profondeur de 5 pour rester sous les 10 secondes de calcul
+    max_depth = 5 
     
-    if col is None:
+    best_col, score = alpha_beta_search(board, max_depth, float('-inf'), float('inf'), True)
+    
+    # Sécurité anti-crash
+    if best_col is None:
         valid_cols = get_valid_locations(board)
-        if len(valid_cols) > 0:
-            col = valid_cols[0]
-        else:
-            col = 0
+        best_col = valid_cols[0] if valid_cols else 0
         
-    return col
+    return best_col
 
-# MINIMAX ET HEURISTIC
+# --- Fonctions Utilitaires ---
+
+def get_winner(board):
+    for c in range(COLS - 3):
+        for r in range(ROWS):
+            if board[r][c] != EMPTY and board[r][c] == board[r][c+1] == board[r][c+2] == board[r][c+3]:
+                return board[r][c]
+                
+    for c in range(COLS):
+        for r in range(ROWS - 3):
+            if board[r][c] != EMPTY and board[r][c] == board[r+1][c] == board[r+2][c] == board[r+3][c]:
+                return board[r][c]
+                
+    for c in range(COLS - 3):
+        for r in range(ROWS - 3):
+            if board[r][c] != EMPTY and board[r][c] == board[r+1][c+1] == board[r+2][c+2] == board[r+3][c+3]:
+                return board[r][c]
+                
+    for c in range(COLS - 3):
+        for r in range(3, ROWS):
+            if board[r][c] != EMPTY and board[r][c] == board[r-1][c+1] == board[r-2][c+2] == board[r-3][c+3]:
+                return board[r][c]
+                
+    return 0
+
+def evaluate_window(window, piece):
+    score = 0
+    opp_piece = HUMAN_PLAYER if piece == IA_PLAYER else IA_PLAYER
+
+    if window.count(piece) == 4:
+        score += 100000
+    elif window.count(piece) == 3 and window.count(EMPTY) == 1:
+        score += 10
+    elif window.count(piece) == 2 and window.count(EMPTY) == 2:
+        score += 2
+
+    # Malus fort si l'adversaire peut gagner
+    if window.count(opp_piece) == 3 and window.count(EMPTY) == 1:
+        score -= 80
+
+    return score
+
+def heuristic(board, piece):
+    score = 0
+
+    # Poids pour la colonne centrale
+    center_col = COLS // 2
+    center_array = [board[r][center_col] for r in range(ROWS)]
+    score += center_array.count(piece) * 4
+
+    # Horizon
+    for r in range(ROWS):
+        row_array = board[r]
+        for c in range(COLS - 3):
+            window = row_array[c:c+4]
+            score += evaluate_window(window, piece)
+
+    # Verti
+    for c in range(COLS):
+        col_array = [board[r][c] for r in range(ROWS)]
+        for r in range(ROWS - 3):
+            window = col_array[r:r+4]
+            score += evaluate_window(window, piece)
+
+    # Diagonales
+    for r in range(ROWS - 3):
+        for c in range(COLS - 3):
+            window = [board[r+i][c+i] for i in range(4)]
+            score += evaluate_window(window, piece)
+
+    for r in range(ROWS - 3):
+        for c in range(COLS - 3):
+            window = [board[r+3-i][c+i] for i in range(4)]
+            score += evaluate_window(window, piece)
+
+    return score
 
 def get_valid_locations(board):
     valid_locations = []
@@ -72,214 +142,163 @@ def get_valid_locations(board):
             valid_locations.append(col)
     return valid_locations
 
-def drop_piece(board, col, piece):
-    new_board = copy.deepcopy(board)
+def get_next_open_row(board, col):
+    # La ligne 5 est le bas du tableau
     for r in range(ROWS-1, -1, -1):
-        if new_board[r][col] == EMPTY:
-            new_board[r][col] = piece
-            break
-    return new_board
+        if board[r][col] == EMPTY:
+            return r
+    return None
 
-def evaluate_window(window, piece):
-    score = 0
-    if piece == IA_PIECE:
-        opp_piece = PLAYER_PIECE
-    else:
-        opp_piece = IA_PIECE
+def drop_piece(board, row, col, piece):
+    board[row][col] = piece
 
-    if window.count(piece) == 4:
-        score += 10000
-    elif window.count(piece) == 3 and window.count(EMPTY) == 1:
-        score += 50
-    elif window.count(piece) == 2 and window.count(EMPTY) == 2:
-        score += 10
+def copy_board(board):
+    return [row[:] for row in board]
 
-    if window.count(opp_piece) == 3 and window.count(EMPTY) == 1:
-        score -= 80
+# --- Minimax & Alpha-Beta ---
 
-    return score
-
-def heuristic_score(board, piece):
-    score = 0
-    
-    center_count = 0
-    for r in range(ROWS):
-        if board[r][COLS//2] == piece:
-            center_count += 1
-    score += center_count * 20
-
-    for r in range(ROWS):
-        for c in range(COLS - 3):
-            window = []
-            for i in range(4):
-                window.append(board[r][c+i])
-            score += evaluate_window(window, piece)
-
-    for c in range(COLS):
-        for r in range(ROWS - 3):
-            window = []
-            for i in range(4):
-                window.append(board[r+i][c])
-            score += evaluate_window(window, piece)
-
-    for r in range(ROWS - 3):
-        for c in range(COLS - 3):
-            window = []
-            for i in range(4):
-                window.append(board[r+i][c+i])
-            score += evaluate_window(window, piece)
-
-    for r in range(ROWS - 3):
-        for c in range(COLS - 3):
-            window = []
-            for i in range(4):
-                window.append(board[r+3-i][c+i])
-            score += evaluate_window(window, piece)
-
-    return score
-
-def minimax(board, depth, alpha, beta, maximizingPlayer):
+def alpha_beta_search(board, depth, alpha, beta, is_max):
     valid_locations = get_valid_locations(board)
     is_terminal = Terminal_Test(board)
     
     if depth == 0 or is_terminal:
         if is_terminal:
-            if heuristic_score(board, IA_PIECE) > 5000:
-                return (None, 100000000000000)
-            elif heuristic_score(board, PLAYER_PIECE) > 5000:
-                return (None, -10000000000000)
+            winner = get_winner(board)
+            if winner == IA_PLAYER:
+                return (None, 10000000000 + depth) # Bonus victoire rapide
+            elif winner == HUMAN_PLAYER:
+                return (None, -10000000000 - depth)
             else:
                 return (None, 0)
         else:
-            return (None, heuristic_score(board, IA_PIECE))
+            return (None, heuristic(board, IA_PLAYER))
             
-    if maximizingPlayer:
-        value = -math.inf
-        middle_index = len(valid_locations) // 2
-        best_col = valid_locations[middle_index] 
+    # Tri des coups pour optimiser l'élagage (on teste le milieu d'abord)
+    valid_locations.sort(key=lambda x: abs(x - COLS//2))
+
+    if is_max:
+        value = float('-inf')
+        best_col = valid_locations[0]
         
         for col in valid_locations:
-            b_copy = drop_piece(board, col, IA_PIECE)
-            new_score = minimax(b_copy, depth-1, alpha, beta, False)[1]
+            row = get_next_open_row(board, col)
+            b_copy = copy_board(board)
+            drop_piece(b_copy, row, col, IA_PLAYER)
+            
+            new_score = alpha_beta_search(b_copy, depth-1, alpha, beta, False)[1]
+            
             if new_score > value:
                 value = new_score
                 best_col = col
+                
             alpha = max(alpha, value)
             if alpha >= beta:
-                break
+                break 
+                
         return best_col, value
         
     else:
-        value = math.inf
-        middle_index = len(valid_locations) // 2
-        best_col = valid_locations[middle_index]
+        value = float('inf')
+        best_col = valid_locations[0]
         
         for col in valid_locations:
-            b_copy = drop_piece(board, col, PLAYER_PIECE)
-            new_score = minimax(b_copy, depth-1, alpha, beta, True)[1]
+            row = get_next_open_row(board, col)
+            b_copy = copy_board(board)
+            drop_piece(b_copy, row, col, HUMAN_PLAYER)
+            
+            new_score = alpha_beta_search(b_copy, depth-1, alpha, beta, True)[1]
+            
             if new_score < value:
                 value = new_score
                 best_col = col
+                
             beta = min(beta, value)
             if alpha >= beta:
-                break
+                break 
+                
         return best_col, value
 
+# --- Interface et Jeu ---
 
-# LOOP
+def create_board():
+    return [[EMPTY for _ in range(COLS)] for _ in range(ROWS)]
 
 def print_board(board):
-    print("\n")
+    print("")
     for r in range(ROWS):
         row_str = "|"
         for c in range(COLS):
-            if board[r][c] == IA_PIECE:
-                row_str += " \033[91mX\033[0m |" 
-            elif board[r][c] == PLAYER_PIECE:
-                row_str += " \033[94mO\033[0m |" 
+            if board[r][c] == IA_PLAYER:
+                row_str += "X|"
+            elif board[r][c] == HUMAN_PLAYER:
+                row_str += "O|"
             else:
-                row_str += "   |"
+                row_str += " |"
         print(row_str)
         
-    dash_str = ""
-    for _ in range(COLS * 4 + 1):
-        dash_str += "-"
-    print(dash_str)
+    print("-" * (COLS * 2 + 1))
+    # Affichage exact demandé par le PDF (0 à 9 puis 0, 1)
+    header = "|" + "|".join(str(c % 10) for c in range(COLS)) + "|"
+    print(header)
+    print("")
+
+def main_loop():
+    print("========================================")
+    print("      PUISSANCE 4 (12x6) - IA vs P1     ")
+    print("========================================")
+    print("IA : X  |  Joueur Humain : O")
     
-    bottom_str = "|"
-    for i in range(COLS):
-        if i < 10:
-            bottom_str += " " + str(i) + " |"
-        else:
-            bottom_str += " " + str(i) + "|"
-    print(bottom_str)
-    print("\n")
-
-def create_board():
-    board = []
-    for r in range(ROWS):
-        row = []
-        for c in range(COLS):
-            row.append(EMPTY)
-        board.append(row)
-    return board
-
-def play_game():
     board = create_board()
-    print("--- PUISSANCE 4 (12x6) ---")
-    print("Vous jouez avec les 'O', l'IA joue avec les 'X'.")
     
-    first = input("Qui commence ? Tapez '1' pour vous, '2' pour l'IA : ")
-    if first == '1':
-        turn = PLAYER_PIECE
-    else:
-        turn = IA_PIECE
+    turn_choice = ""
+    while turn_choice not in ["1", "2"]:
+        turn_choice = input("Qui commence ? (1 pour Joueur, 2 pour IA) : ")
+    
+    turn = 0 if turn_choice == "1" else 1
+    game_over = False
     
     print_board(board)
     
-    while not Terminal_Test(board):
-        if turn == PLAYER_PIECE:
-            valid = False
-            while not valid:
+    while not game_over:
+        if turn == 0:
+            col = -1
+            valid_cols = get_valid_locations(board)
+            while col not in valid_cols:
                 try:
-                    col_str = input("Votre tour (0-11) : ")
-                    col = int(col_str)
-                    if col >= 0 and col <= 11 and board[0][col] == EMPTY:
-                        valid = True
-                        board = drop_piece(board, col, PLAYER_PIECE)
-                    else:
-                        print("Colonne invalide ou pleine.")
+                    col = int(input(f"Votre tour (0-11) : "))
+                    if col not in valid_cols:
+                        print("Colonne invalide. Réessayez.")
                 except ValueError:
-                    print("Veuillez entrer un chiffre.")
-            turn = IA_PIECE
+                    print("Entrez un nombre.")
             
+            row = get_next_open_row(board, col)
+            drop_piece(board, row, col, HUMAN_PLAYER)
+
         else:
             print("L'IA réfléchit...")
             start_time = time.time()
+            
             col = IA_Decision(board)
+            row = get_next_open_row(board, col)
+            drop_piece(board, row, col, IA_PLAYER)
+            
             end_time = time.time()
-            
-            diff_time = end_time - start_time
-            print("L'IA a joué dans la colonne " + str(col) + " (Temps de réflexion : " + str(round(diff_time, 2)) + "s)")
-            board = drop_piece(board, col, IA_PIECE)
-            turn = PLAYER_PIECE
-            
+            print(f"> L'IA a joué en colonne {col} ({end_time - start_time:.2f}s)")
+
         print_board(board)
         
-    pieces_played = 0
-    for r in range(ROWS):
-        for c in range(COLS):
-            if board[r][c] != EMPTY:
-                pieces_played += 1
+        if Terminal_Test(board):
+            game_over = True
+            winner = get_winner(board)
+            if winner == IA_PLAYER:
+                print("L'IA GAGNE !")
+            elif winner == HUMAN_PLAYER:
+                print("VOUS AVEZ GAGNÉ !")
+            else:
+                print("MATCH NUL ! (Limite atteinte ou plateau plein)")
                 
-    if heuristic_score(board, IA_PIECE) > 5000:
-        print("L'IA A GAGNÉ")
-    elif heuristic_score(board, PLAYER_PIECE) > 5000:
-        print("VOUS AVEZ GAGNÉ")
-    elif pieces_played >= MAX_PIECES:
-        print("MATCH NUL (Limite des " + str(MAX_PIECES) + " pièces atteinte)")
-    else:
-        print("MATCH NUL (Grille pleine)")
+        turn += 1
+        turn = turn % 2
 
 if __name__ == "__main__":
-    play_game()
+    main_loop()
