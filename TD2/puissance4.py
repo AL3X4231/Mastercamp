@@ -2,7 +2,7 @@ import math
 import time
 import copy
 
-# --- CONSTANTS ---
+# CONSTANTS
 ROWS = 6
 COLS = 12
 MAX_PIECES = 42
@@ -10,8 +10,6 @@ MAX_PIECES = 42
 IA_PIECE = 1
 PLAYER_PIECE = -1
 EMPTY = 0
-
-# --- CORE FUNCTIONS ---
 
 def Terminal_Test(board):
     for piece in [IA_PIECE, PLAYER_PIECE]:
@@ -68,7 +66,7 @@ def IA_Decision(board):
         
     return col
 
-# --- MINIMAX & HEURISTIC ---
+# MINIMAX ET HEURISTIC
 
 def get_valid_locations(board):
     valid_locations = []
@@ -191,7 +189,7 @@ def minimax(board, depth, alpha, beta, maximizingPlayer):
         return best_col, value
 
 
-# --- MAIN LOOP ---
+# LOOP
 
 def print_board(board):
     print("\n")
@@ -278,13 +276,13 @@ def play_game():
                 pieces_played += 1
                 
     if heuristic_score(board, IA_PIECE) > 5000:
-        print("L'IA A GAGNÉ !")
+        print("L'IA A GAGNÉ")
     elif heuristic_score(board, PLAYER_PIECE) > 5000:
-        print("VOUS AVEZ GAGNÉ !")
+        print("VOUS AVEZ GAGNÉ")
     elif pieces_played >= MAX_PIECES:
-        print("MATCH NUL ! (Limite des " + str(MAX_PIECES) + " pièces atteinte)")
+        print("MATCH NUL (Limite des " + str(MAX_PIECES) + " pièces atteinte)")
     else:
-        print("MATCH NUL ! (Grille pleine)")
+        print("MATCH NUL (Grille pleine)")
 
 if __name__ == "__main__":
     play_game()
