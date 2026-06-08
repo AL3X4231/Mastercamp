@@ -126,16 +126,14 @@ def evaluate_window(window, piece):
     return score
 
 def is_playable(board, row, col):
-    # Une case vide est "jouable maintenant" si c'est la ligne du bas (row == ROWS-1)
-    # OU si la case juste en dessous est déjà occupée (la gravité est respectée)
+    # On regarde si une case est jouable pour pouvoir détecter les vraies fourchettes sinon l'algo en détecte partout
     if row == ROWS - 1:
         return True
     return board[row + 1][col] != EMPTY
 
 def count_threats(board, piece):
-    # Compte le nombre de fenêtres de 4 cases qui contiennent exactement
-    # 3 pions du joueur + 1 case vide JOUABLE (accessible ce tour)
-    # C'est le cœur de la détection de fourchette
+    # On compte le nombre de menaces accesible à ce tour (3 + 1 case vide) pour savoir si y'a une fourchette (> 2)
+
     threats = 0
 
     def check_window_for_threat(cells):
@@ -144,32 +142,32 @@ def count_threats(board, piece):
         values = [v for (_, _, v) in cells]
         empties = [(r, c) for (r, c, v) in cells if v == EMPTY]
 
-        # La fenêtre est une menace si : 3 pions du joueur + exactement 1 vide
+        # Y'a menace si : 3 pions du joueur + 1 vide. Attention ça doit être exactement cette config sinon ça ne marche juste pas quoi
         if values.count(piece) == 3 and len(empties) == 1:
             r_empty, c_empty = empties[0]
-            # On ne compte que si la case vide est accessible maintenant
+            # détection de la jouabilité du coup avec la fonction 
             if is_playable(board, r_empty, c_empty):
                 threats += 1
 
-    # Scan horizontal : on parcourt chaque ligne, fenêtre de 4 colonnes
+    # Scan horizontal : (comme dans heurisitc)
     for r in range(ROWS):
         for c in range(COLS - 3):
             cells = [(r, c+i, board[r][c+i]) for i in range(4)]
             check_window_for_threat(cells)
 
-    # Scan vertical : on parcourt chaque colonne, fenêtre de 4 lignes
+    # Scan vertical : 
     for c in range(COLS):
         for r in range(ROWS - 3):
             cells = [(r+i, c, board[r+i][c]) for i in range(4)]
             check_window_for_threat(cells)
 
-    # Scan diagonale descendante (↘)
+    # Scan diagonale descendante
     for r in range(ROWS - 3):
         for c in range(COLS - 3):
             cells = [(r+i, c+i, board[r+i][c+i]) for i in range(4)]
             check_window_for_threat(cells)
 
-    # Scan diagonale montante (↗)
+    # Scan diagonale montante 
     for r in range(3, ROWS):
         for c in range(COLS - 3):
             cells = [(r-i, c+i, board[r-i][c+i]) for i in range(4)]
@@ -202,16 +200,16 @@ def heuristic(board, piece):
             score += evaluate_window([board[r+i][c+i] for i in range(4)], piece)
             score += evaluate_window([board[r+3-i][c+i] for i in range(4)], piece)
 
-    # --- Bonus fourchette ---
-    # On compte les menaces actives du joueur ET de l'adversaire
+    # Pour utiliser minmax on compte les menaces actives du joueur ET de l'adversaire
     my_threats = count_threats(board, piece)
     opp_threats = count_threats(board, -piece)
 
-    # Si on a 2 menaces simultanées ou plus → fourchette gagnante → gros bonus
+    # Gros bonus pour les fourchettes
     if my_threats >= 2:
         score += 500 * my_threats
 
-    # Si l'adversaire a une fourchette → situation très dangereuse → gros malus
+    # Gros malus pour les fourchettes adverses, ATTENTION : on préfère supprimer les menaces adverses avant de créer les notres, sinon on a juste perdu, 
+    # Donc le malus>bonus : (c'est pour ça que c'est 600 et pas 500)
     if opp_threats >= 2:
         score -= 600 * opp_threats
 
